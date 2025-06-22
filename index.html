@@ -2,16 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>HTML Tool Viewer with Tool Preview</title>
+  <title>vH-HTML Tool Viewer with Code Editor</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     html, body { height: 100%; }
     .resize-row { resize: vertical; overflow: auto; min-height: 50px; }
     #editor-html, #editor-css, #editor-js { min-height: 100px; }
-    .resizable-pane {
-      display: flex;
-      overflow: hidden;
-    }
+    .resizable-pane { display: flex; overflow: hidden; }
     .resizable-left {
       width: 33%;
       min-width: 150px;
@@ -23,10 +20,7 @@
       flex-direction: column;
       position: relative;
     }
-    .resizable-right {
-      flex: 1;
-      overflow: auto;
-    }
+    .resizable-right { flex: 1; overflow: auto; }
     .editor-container {
       border: 1px solid #4b5563;
       border-radius: 4px;
@@ -129,7 +123,7 @@
       }
     }
 
-    // Horizontal mindmap (left to right, auto width)
+    // Horizontal mindmap (left to right, auto width, no overflow)
     function buildHorizontalMindmap(tree, containerId = 'fileTree') {
       const container = document.getElementById(containerId);
       container.innerHTML = "";
@@ -139,16 +133,47 @@
       const root = tree[rootName] || {};
       const children = Object.entries(root);
 
-      // Dynamic sizing
-      const labelLength = (str) => str.length < 12 ? 100 : str.length * 8;
-      const centralLabelWidth = labelLength(rootName);
+      // SVG font settings
+      const fontFamily = "Inter, Arial, sans-serif";
+      const fontSize = 18; // px
+
+      // --- 1. Measure all node label widths (including icons) ---
+      // We'll use a hidden SVG text element for real measurement
+      const measurer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      measurer.style.visibility = "hidden";
+      document.body.appendChild(measurer);
+
+      function measureText(text, fontSizePx = fontSize, fontFam = fontFamily) {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("font-size", fontSizePx + "px");
+        t.setAttribute("font-family", fontFam);
+        t.textContent = text;
+        measurer.appendChild(t);
+        const width = t.getBBox().width;
+        measurer.removeChild(t);
+        return width;
+      }
+
+      // central node
+      const centralLabelWidth = Math.ceil(measureText(rootName, 24, fontFamily)) + 40; // +padding
+
+      // child nodes
+      const nodeHeights = [];
+      let maxNodeLabelW = 0;
+      const childNodeWidths = children.map(([name]) => {
+        const w = Math.ceil(measureText(name, fontSize, fontFamily));
+        maxNodeLabelW = Math.max(maxNodeLabelW, w);
+        nodeHeights.push(46);
+        return w;
+      });
+
+      document.body.removeChild(measurer);
+
       const nodeHeight = 46;
       const nodeYPad = 12;
       const branchLength = 160;
-
       // Calculate SVG width & height based on children
-      const maxLabelW = Math.max(...children.map(([name]) => labelLength(name)), centralLabelWidth, 100);
-      const svgWidth = centralLabelWidth/2 + branchLength + maxLabelW + 60 + 40;
+      const svgWidth = centralLabelWidth/2 + branchLength + maxNodeLabelW + 70 + 40;
       const svgHeight = Math.max(220, children.length * (nodeHeight + nodeYPad));
 
       // Center points
@@ -164,7 +189,6 @@
 
       // Central node (root)
       const centralGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      // Node rect
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       rect.setAttribute("x", centerX - centralLabelWidth/2);
       rect.setAttribute("y", centerY - nodeHeight/2);
@@ -176,14 +200,13 @@
       rect.setAttribute("stroke", "#888");
       rect.setAttribute("stroke-width", "2");
       centralGroup.appendChild(rect);
-      // Node text
       const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
       text.setAttribute("x", centerX);
       text.setAttribute("y", centerY + 7);
       text.setAttribute("text-anchor", "middle");
       text.setAttribute("font-size", "1.5em");
       text.setAttribute("font-weight", "bold");
-      text.setAttribute("font-family", "Inter, Arial, sans-serif");
+      text.setAttribute("font-family", fontFamily);
       text.textContent = rootName;
       centralGroup.appendChild(text);
       svg.appendChild(centralGroup);
@@ -205,7 +228,10 @@
       children.forEach(([name, sub], i) => {
         // Node position
         const y = startY + i * (nodeHeight + nodeYPad);
-        const nodeLabelW = labelLength(name);
+
+        // Use measured width for this label
+        const measuredLabelW = childNodeWidths[i];
+        const nodeLabelW = 46 + measuredLabelW + 18; // icon + gap + text + some padding
 
         // Points
         const fromX = centerX + centralLabelWidth/2;
@@ -255,8 +281,8 @@
         const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
         label.setAttribute("x", 40);
         label.setAttribute("y", nodeHeight/2 + 7);
-        label.setAttribute("font-size", "1.13em");
-        label.setAttribute("font-family", "Inter, Arial, sans-serif");
+        label.setAttribute("font-size", fontSize + "px");
+        label.setAttribute("font-family", fontFamily);
         label.setAttribute("fill", "#444");
         label.textContent = name;
         nodeGroup.appendChild(label);
@@ -402,7 +428,7 @@
 </head>
 <body class="bg-gray-100 font-sans min-h-screen flex items-center justify-center">
   <div class="bg-white shadow-lg rounded-lg p-6 w-full max-w-4xl flex flex-col">
-    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">📁 HTML Viewer Tool + Tool Preview</h1>
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">📁 vH-HTML Viewer Tool/Code Editor</h1>
 
     <!-- Two column input widget -->
     <div class="flex flex-col gap-4 mb-4">
