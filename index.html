@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>vH-HTML File/Folder Viewer</title>
+  <script>
+    let fileMap = new Map();
+
+    function handleFiles(files, isSingle = false) {
+      fileMap.clear();
+      for (const file of files) {
+        const key = file.webkitRelativePath || file.name;
+        fileMap.set(key, file);
+      }
+
+      const container = document.getElementById('fileTree');
+      container.innerHTML = '';
+
+      // Show tree view only for folder imports
+      if (!isSingle) {
+        const tree = {};
+        for (const path of fileMap.keys()) {
+          const parts = path.split('/');
+          let current = tree;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            if (!current[part]) {
+              current[part] = i === parts.length - 1 ? null : {};
+            }
+            current = current[part] || {};
+          }
+        }
+        container.appendChild(buildTreeUI(tree));
+      } else {
+        container.innerHTML = `<p class="text-gray-700 text-sm">📄 ${[...fileMap.keys()][0]}</p>`;
+      }
+    }
+
+    function buildTreeUI(tree, depth = 0) {
+      const ul = document.createElement('ul');
+      ul.className = depth === 0 ? 'pl-0' : 'pl-4';
+      for (const key in tree) {
+        const li = document.createElement('li');
+        li.className = 'mb-1';
+        if (tree[key] === null) {
+          li.innerHTML = `<span class="text-sm text-gray-700">📄 ${key}</span>`;
+        } else {
+          li.innerHTML = `<span class="text-sm font-semibold text-blue-600">📁 ${key}</span>`;
+          li.appendChild(buildTreeUI(tree[key], depth + 1));
+        }
+        ul.appendChild(li);
+      }
+      return ul;
+    }
+
+    async function openHTML() {
+      const htmlFile = [...fileMap.values()].find(f => f.name.endsWith('.html'));
+      if (!htmlFile) {
+        alert('No HTML file found!');
+        return;
+      }
+
+      const htmlText = await htmlFile.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+
+      for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
+        const href = link.getAttribute('href');
+        const file = fileMap.get(href);
+        if (file) {
+          const style = document.createElement('style');
+          style.textContent = await file.text();
+          link.replaceWith(style);
+        }
+      }
+
+      for (const script of doc.querySelectorAll('script[src]')) {
+        const src = script.getAttribute('src');
+        const file = fileMap.get(src);
+        if (file) {
+          const newScript = document.createElement('script');
+          newScript.textContent = await file.text();
+          script.replaceWith(newScript);
+        }
+      }
+
+      const blob = new Blob([doc.documentElement.outerHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      document.getElementById('popupFrame').src = url;
+      document.getElementById('popupModal').classList.remove('hidden');
+    }
+
+    function closePopup() {
+      document.getElementById('popupModal').classList.add('hidden');
+      document.getElementById('popupFrame').src = '';
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex items-center justify-center">
+  <div class="bg-white shadow-lg rounded-lg p-6 w-full max-w-4xl">
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">📁 HTML File/Folder Viewer Tool</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div>
+        <label class="block font-semibold text-sm mb-2">📂 Import Folder (HTML + CSS + JS)</label>
+        <input type="file" webkitdirectory multiple
+          class="border border-gray-300 p-2 rounded w-full"
+          onchange="handleFiles(this.files, false)" />
+      </div>
+
+      <div>
+        <label class="block font-semibold text-sm mb-2">📄 Import Single HTML File</label>
+        <input type="file" accept=".html"
+          class="border border-gray-300 p-2 rounded w-full"
+          onchange="handleFiles(this.files, true)" />
+      </div>
+    </div>
+
+    <button onclick="openHTML()" 
+      class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded mb-4">
+      🔍 Open HTML in Popup
+    </button>
+
+    <div id="fileTree" class="bg-gray-50 border border-gray-200 p-4 rounded overflow-auto max-h-96 text-sm text-gray-700">
+      <p class="text-gray-500">📁 Folder structure or file name will appear here...</p>
+    </div>
+  </div>
+
+  <!-- Modal Popup -->
+  <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg overflow-hidden w-full max-w-5xl h-[90%] shadow-lg relative">
+      <button onclick="closePopup()" 
+        class="absolute top-3 right-3 w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md text-xl transition">
+        &times;
+      </button>
+      <iframe id="popupFrame" class="w-full h-full border-0"></iframe>
+    </div>
+  </div>
+</body>
+</html>
