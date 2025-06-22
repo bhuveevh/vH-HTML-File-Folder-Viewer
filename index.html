@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>vH-HTML Tool Viewer with Code Editor</title>
+  <title>vH-HTML Code Viewer with Code editor</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     html, body { height: 100%; }
@@ -90,345 +90,136 @@
         font-size: 0.97rem;
       }
     }
+    #popupModal .popup-content {
+      position: relative;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0,0,0,0.17);
+      border: 1.5px solid #e5e7eb;
+      display: flex;
+      flex-direction: row;
+      justify-content: stretch;
+      align-items: stretch;
+      width: 78vw;
+      max-width: 1100px;
+      min-width: 340px;
+      height: 80vh;
+      min-height: 350px;
+      max-height: 92vh;
+      z-index: 51;
+      margin: 0 auto;
+      overflow: hidden;
+      animation: fadein .18s;
+    }
+    #popupModal .popup-iframe {
+      width: 70%;
+      border: none;
+      border-right: 1.5px solid #e5e7eb;
+      border-radius: 16px 0 0 16px;
+      background: #fff;
+      height: 100%;
+      min-width: 220px;
+    }
+    #popupModal .popup-notepad {
+      width: 30%;
+      min-width: 180px;
+      max-width: 420px;
+      height: 100%;
+      background: #f8fafc;
+      border-radius: 0 16px 16px 0;
+      padding: 1.1rem 1.1rem 0.7rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      border-left: 1.5px solid #e5e7eb;
+      box-sizing: border-box;
+    }
+    #notepadText {
+      font-family: 'Fira Mono', 'Consolas', 'Courier New', monospace;
+      font-size: 1rem;
+      padding: 0.7rem;
+      border-radius: 7px;
+      width: 100%;
+      min-height: 180px;
+      flex: 1 1 auto;
+      resize: vertical;
+      background: #f9fafb;
+      border: 1px solid #ddd;
+      color: #222;
+      outline: none;
+      margin-top: 0.4rem;
+      margin-bottom: 0.5rem;
+      box-sizing: border-box;
+    }
+    #notepadText.highlight {
+      background: #fffbe8;
+      border-color: #facc15;
+    }
+    #popupModal input[type="text"]::placeholder {
+      color: #aaa;
+    }
+    #popupModal label { font-size: 0.98rem; }
+    #notepadReplaceMsg {
+      font-size: 0.98rem;
+      color: #16a34a;
+      margin-left: 8px;
+    }
+    #popupModal .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 22px;
+      z-index: 53;
+    }
+    @media (max-width: 1100px) {
+      #popupModal .popup-content { width: 95vw; }
+      #popupModal .popup-iframe { width: 67%; }
+      #popupModal .popup-notepad { width: 33%; }
+    }
+    @media (max-width: 800px) {
+      #popupModal .popup-content {
+        flex-direction: column;
+        width: 98vw;
+        height: 97vh;
+        min-width: 0;
+      }
+      #popupModal .popup-iframe {
+        width: 100%;
+        min-width: 0;
+        min-height: 175px;
+        max-height: 55vh;
+        border-bottom: 1.5px solid #e5e7eb;
+        border-right: none;
+        border-radius: 16px 16px 0 0;
+      }
+      #popupModal .popup-notepad {
+        width: 100%;
+        max-width: 100vw;
+        min-width: 0;
+        border-left: none;
+        border-top: 1.5px solid #e5e7eb;
+        border-radius: 0 0 16px 16px;
+        min-height: 120px;
+        max-height: calc(42vh);
+      }
+      #popupModal .close-btn {
+        top: 9px;
+        right: 12px;
+      }
+    }
+    @media (max-width: 450px) {
+      #popupModal .popup-content { min-width: 0; }
+      #popupModal .popup-iframe { min-width: 0; }
+      #popupModal .popup-notepad { min-width: 0; }
+    }
+    @keyframes fadein {
+      from { opacity: 0; transform: scale(0.98);}
+      to { opacity: 1; transform: scale(1);}
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.38.0/min/vs/loader.js"></script>
-  <script>
-    let fileMap = new Map();
-    let editorHTML, editorCSS, editorJS;
-
-    function handleFiles(files, isSingle = false) {
-      fileMap.clear();
-      for (const file of files) {
-        const key = file.webkitRelativePath || file.name;
-        fileMap.set(key, file);
-      }
-      const container = document.getElementById('fileTree');
-      container.innerHTML = '';
-      if (!isSingle) {
-        const tree = {};
-        for (const path of fileMap.keys()) {
-          const parts = path.split('/');
-          let current = tree;
-          for (let i = 0; i < parts.length; i++) {
-            const part = parts[i];
-            if (!current[part]) {
-              current[part] = i === parts.length - 1 ? null : {};
-            }
-            current = current[part] || {};
-          }
-        }
-        buildHorizontalMindmap(tree);
-      } else {
-        container.innerHTML = `<p class="text-gray-700 text-sm">📄 ${[...fileMap.keys()][0]}</p>`;
-      }
-    }
-
-    // Horizontal mindmap (left to right, auto width, no overflow)
-    function buildHorizontalMindmap(tree, containerId = 'fileTree') {
-      const container = document.getElementById(containerId);
-      container.innerHTML = "";
-
-      // Find root and children
-      const rootName = Object.keys(tree)[0] || "Root";
-      const root = tree[rootName] || {};
-      const children = Object.entries(root);
-
-      // SVG font settings
-      const fontFamily = "Inter, Arial, sans-serif";
-      const fontSize = 18; // px
-
-      // --- 1. Measure all node label widths (including icons) ---
-      // We'll use a hidden SVG text element for real measurement
-      const measurer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      measurer.style.visibility = "hidden";
-      document.body.appendChild(measurer);
-
-      function measureText(text, fontSizePx = fontSize, fontFam = fontFamily) {
-        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("font-size", fontSizePx + "px");
-        t.setAttribute("font-family", fontFam);
-        t.textContent = text;
-        measurer.appendChild(t);
-        const width = t.getBBox().width;
-        measurer.removeChild(t);
-        return width;
-      }
-
-      // central node
-      const centralLabelWidth = Math.ceil(measureText(rootName, 24, fontFamily)) + 40; // +padding
-
-      // child nodes
-      const nodeHeights = [];
-      let maxNodeLabelW = 0;
-      const childNodeWidths = children.map(([name]) => {
-        const w = Math.ceil(measureText(name, fontSize, fontFamily));
-        maxNodeLabelW = Math.max(maxNodeLabelW, w);
-        nodeHeights.push(46);
-        return w;
-      });
-
-      document.body.removeChild(measurer);
-
-      const nodeHeight = 46;
-      const nodeYPad = 12;
-      const branchLength = 160;
-      // Calculate SVG width & height based on children
-      const svgWidth = centralLabelWidth/2 + branchLength + maxNodeLabelW + 70 + 40;
-      const svgHeight = Math.max(220, children.length * (nodeHeight + nodeYPad));
-
-      // Center points
-      const centerX = 40 + centralLabelWidth/2;
-      const centerY = svgHeight / 2;
-
-      // SVG base
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("width", svgWidth);
-      svg.setAttribute("height", svgHeight);
-      svg.style.display = "block";
-      svg.style.margin = "0 auto";
-
-      // Central node (root)
-      const centralGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      rect.setAttribute("x", centerX - centralLabelWidth/2);
-      rect.setAttribute("y", centerY - nodeHeight/2);
-      rect.setAttribute("rx", 16);
-      rect.setAttribute("ry", 16);
-      rect.setAttribute("width", centralLabelWidth);
-      rect.setAttribute("height", nodeHeight);
-      rect.setAttribute("fill", "#fff");
-      rect.setAttribute("stroke", "#888");
-      rect.setAttribute("stroke-width", "2");
-      centralGroup.appendChild(rect);
-      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      text.setAttribute("x", centerX);
-      text.setAttribute("y", centerY + 7);
-      text.setAttribute("text-anchor", "middle");
-      text.setAttribute("font-size", "1.5em");
-      text.setAttribute("font-weight", "bold");
-      text.setAttribute("font-family", fontFamily);
-      text.textContent = rootName;
-      centralGroup.appendChild(text);
-      svg.appendChild(centralGroup);
-
-      // If no children, done
-      if (!children.length) {
-        container.appendChild(svg);
-        return;
-      }
-
-      // Spread children vertically
-      const totalHeight = (children.length - 1) * (nodeHeight + nodeYPad);
-      const startY = centerY - totalHeight / 2;
-
-      const branchColors = [
-        "#60c020", "#55c4e7", "#347cf7", "#fbc02d", "#f87171", "#a78bfa", "#f59e42", "#a3e635"
-      ];
-
-      children.forEach(([name, sub], i) => {
-        // Node position
-        const y = startY + i * (nodeHeight + nodeYPad);
-
-        // Use measured width for this label
-        const measuredLabelW = childNodeWidths[i];
-        const nodeLabelW = 46 + measuredLabelW + 18; // icon + gap + text + some padding
-
-        // Points
-        const fromX = centerX + centralLabelWidth/2;
-        const fromY = centerY;
-        const toX = fromX + branchLength;
-        const toY = y + nodeHeight/2;
-
-        // Bezier curve for branch
-        const ctrlX = fromX + branchLength/2;
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d",
-          `M${fromX},${fromY} C${ctrlX},${fromY} ${ctrlX},${toY} ${toX},${toY}`
-        );
-        path.setAttribute("stroke", branchColors[i % branchColors.length]);
-        path.setAttribute("stroke-width", 7);
-        path.setAttribute("fill", "none");
-        path.setAttribute("stroke-linecap", "round");
-        svg.appendChild(path);
-
-        // Node group (file/folder)
-        const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        nodeGroup.setAttribute("transform", `translate(${toX},${toY - nodeHeight/2})`);
-
-        // Node rect
-        const nodeRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        nodeRect.setAttribute("x", 0);
-        nodeRect.setAttribute("y", 0);
-        nodeRect.setAttribute("rx", 11);
-        nodeRect.setAttribute("ry", 11);
-        nodeRect.setAttribute("width", nodeLabelW);
-        nodeRect.setAttribute("height", nodeHeight);
-        nodeRect.setAttribute("fill", "#fff");
-        nodeRect.setAttribute("stroke", "#bbb");
-        nodeRect.setAttribute("stroke-width", "1.5");
-        nodeGroup.appendChild(nodeRect);
-
-        // Icon
-        const icon = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        icon.setAttribute("x", 17);
-        icon.setAttribute("y", nodeHeight/2 + 7);
-        icon.setAttribute("font-size", "1.3em");
-        icon.setAttribute("font-family", "Segoe UI Emoji");
-        icon.textContent = sub === null ? "📄" : "📁";
-        nodeGroup.appendChild(icon);
-
-        // Label
-        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        label.setAttribute("x", 40);
-        label.setAttribute("y", nodeHeight/2 + 7);
-        label.setAttribute("font-size", fontSize + "px");
-        label.setAttribute("font-family", fontFamily);
-        label.setAttribute("fill", "#444");
-        label.textContent = name;
-        nodeGroup.appendChild(label);
-
-        svg.appendChild(nodeGroup);
-      });
-
-      container.appendChild(svg);
-
-      // Responsive parent box
-      container.style.overflowX = "auto";
-      container.style.justifyContent = "flex-start";
-      container.style.alignItems = "center";
-      container.style.minWidth = "0";
-      container.style.maxWidth = "100%";
-      svg.style.minWidth = "0";
-      svg.style.maxWidth = "none";
-    }
-
-    async function openHTML() {
-      const htmlFile = [...fileMap.values()].find(f => f.name.endsWith('.html'));
-      if (!htmlFile) return alert('No HTML file found!');
-      const htmlText = await htmlFile.text();
-      renderHTMLContent(htmlText);
-    }
-
-    function renderHTMLContent(htmlText) {
-      const blob = new Blob([htmlText], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      document.getElementById('popupFrame').src = url;
-      document.getElementById('popupModal').classList.remove('hidden');
-    }
-
-    function closePopup() {
-      document.getElementById('popupModal').classList.add('hidden');
-      document.getElementById('popupFrame').src = '';
-    }
-
-    function openToolPreview() {
-      document.getElementById('toolPreviewModal').classList.remove('hidden');
-    }
-
-    function closeToolPreview() {
-      document.getElementById('toolPreviewModal').classList.add('hidden');
-    }
-
-    function runCustomCode() {
-      const html = editorHTML.getValue();
-      const css = `<style>${editorCSS.getValue()}</style>`;
-      const js = `<script>${editorJS.getValue()}<\/script>`;
-      const result = html + css + js;
-      const blob = new Blob([result], { type: 'text/html' });
-      document.getElementById('toolPreviewFrame').src = URL.createObjectURL(blob);
-    }
-
-    function autoUpdatePreview() {
-      runCustomCode();
-    }
-
-    // ---- Monaco Editor Loader ----
-    window.onload = () => {
-      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.38.0/min/vs' }});
-      require(['vs/editor/editor.main'], () => {
-        monaco.languages.registerColorProvider('html', {
-          provideDocumentColors: function(model) {
-            const colorRegex = /(#(?:[0-9a-fA-F]{3,8}))|\b(?:rgb|rgba|hsl|hsla)\([^\)]*\)|\b(aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen)\b/gi;
-            const colors = [];
-            const lines = model.getLinesContent();
-            for (let i = 0; i < lines.length; i++) {
-              let match;
-              while ((match = colorRegex.exec(lines[i])) !== null) {
-                const start = match.index + 1;
-                const end = start + match[0].length;
-                let color = parseCssColor(match[0]);
-                if (color) {
-                  colors.push({
-                    color,
-                    range: new monaco.Range(i + 1, start, i + 1, end)
-                  });
-                }
-              }
-            }
-            return colors;
-          },
-          provideColorPresentations: function(model, colorInfo) {
-            const rgba = colorInfo.color;
-            let r = Math.round(rgba.red * 255);
-            let g = Math.round(rgba.green * 255);
-            let b = Math.round(rgba.blue * 255);
-            let a = rgba.alpha;
-            let hex = "#" + [r,g,b].map(x => x.toString(16).padStart(2, '0')).join('');
-            if (a < 1) hex += Math.round(a * 255).toString(16).padStart(2, '0');
-            return [{ label: hex }];
-          }
-        });
-
-        editorHTML = monaco.editor.create(document.getElementById('editor-html'), {
-          value: '<!-- HTML here -->',
-          language: 'html',
-          theme: 'vs-dark',
-          automaticLayout: true
-        });
-        editorCSS = monaco.editor.create(document.getElementById('editor-css'), {
-          value: '/* CSS here */',
-          language: 'css',
-          theme: 'vs-dark',
-          automaticLayout: true
-        });
-        editorJS = monaco.editor.create(document.getElementById('editor-js'), {
-          value: '// JS here',
-          language: 'javascript',
-          theme: 'vs-dark',
-          automaticLayout: true
-        });
-
-        [editorHTML, editorCSS, editorJS].forEach(editor => {
-          editor.onDidChangeModelContent(() => {
-            autoUpdatePreview();
-          });
-        });
-
-        autoUpdatePreview();
-      });
-
-      function parseCssColor(str) {
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = 1;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0,0,1,1);
-        ctx.fillStyle = str;
-        ctx.fillRect(0,0,1,1);
-        const data = ctx.getImageData(0,0,1,1).data;
-        if (data[3] === 0) return null;
-        return {
-          red: data[0]/255,
-          green: data[1]/255,
-          blue: data[2]/255,
-          alpha: data[3]/255
-        };
-      }
-    };
-  </script>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen flex items-center justify-center">
   <div class="bg-white shadow-lg rounded-lg p-6 w-full max-w-4xl flex flex-col">
-    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">📁 vH-HTML Viewer Tool/Code Editor</h1>
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">❰vh-HTML Viewer/Code editor❱</h1>
 
     <!-- Two column input widget -->
     <div class="flex flex-col gap-4 mb-4">
@@ -457,7 +248,7 @@
     <!-- Tool Preview Button at bottom -->
     <button onclick="openToolPreview()"
       class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded mt-8">
-      🛠 Tool Preview
+      🛠 Open Code Editor
     </button>
 
     <!-- Branding at the bottom -->
@@ -470,20 +261,47 @@
     </div>
   </div>
 
+  <!-- Popup modal with centered flex preview+notepad -->
   <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg overflow-hidden w-full max-w-5xl h-[90%] shadow-lg relative">
+    <div class="popup-content">
+      <!-- Close button in top right, but OUTSIDE notepad so it never overlaps -->
       <button onclick="closePopup()"
-        class="absolute top-3 right-3 w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md text-xl transition">
+        class="close-btn absolute w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md text-xl transition z-50"
+        style="top: 18px; right: 18px;">
         &times;
       </button>
-      <iframe id="popupFrame" class="w-full h-full border-0"></iframe>
+      <!-- HTML Preview Left -->
+      <iframe id="popupFrame" class="popup-iframe"></iframe>
+      <!-- Notepad Right -->
+      <div class="popup-notepad">
+        <div class="font-bold text-gray-700 text-base flex-shrink-0 flex items-center gap-2 mb-2">📝 vH-Notepad</div>
+        <!-- Find/Replace in 2 rows for better fit -->
+        <div class="flex flex-col gap-2 mb-2">
+          <div class="flex flex-row items-center gap-2 w-full">
+            <label for="notepadFind" class="text-gray-600 whitespace-nowrap">Find:</label>
+            <input id="notepadFind" type="text" placeholder="Find..." class="border rounded px-2 py-1 w-full max-w-[80px] focus:outline-blue-400">
+            <button onclick="findInNotepad()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm whitespace-nowrap">Find</button>
+          </div>
+          <div class="flex flex-row items-center gap-2 w-full">
+            <label for="notepadReplace" class="text-gray-600 whitespace-nowrap">Replace:</label>
+            <input id="notepadReplace" type="text" placeholder="Replace..." class="border rounded px-2 py-1 w-full max-w-[80px] focus:outline-blue-400">
+            <button onclick="replaceInNotepad()" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm whitespace-nowrap">Replace All</button>
+            <span id="notepadReplaceMsg" class="whitespace-nowrap"></span>
+          </div>
+        </div>
+        <!-- Paste Clipboard button just above textarea -->
+        <button onclick="quickPasteToNotepad()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded text-xs whitespace-nowrap mb-2 w-max self-end">
+          Paste Clipboard
+        </button>
+        <textarea id="notepadText" placeholder="Write notes here..."></textarea>
+      </div>
     </div>
   </div>
 
   <div id="toolPreviewModal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden">
     <div class="flex flex-col w-full h-full">
       <div class="flex-none p-2 text-white bg-gray-900 flex justify-between items-center">
-        <span class="text-lg font-semibold">🛠 Tool Preview</span>
+        <span class="text-lg font-semibold">🛠 vH-Code editor/viewer</span>
         <button onclick="closeToolPreview()"
           class="w-10 h-10 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white rounded-full">
           &times;
@@ -518,5 +336,410 @@
       </div>
     </div>
   </div>
+
+<script>
+  let fileMap = new Map();
+  let editorHTML, editorCSS, editorJS;
+
+  function handleFiles(files, isSingle = false) {
+    fileMap.clear();
+    for (const file of files) {
+      const key = file.webkitRelativePath || file.name;
+      fileMap.set(key, file);
+    }
+    const container = document.getElementById('fileTree');
+    container.innerHTML = '';
+    if (!isSingle) {
+      const tree = {};
+      for (const path of fileMap.keys()) {
+        const parts = path.split('/');
+        let current = tree;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (!current[part]) {
+            current[part] = i === parts.length - 1 ? null : {};
+          }
+          current = current[part] || {};
+        }
+      }
+      buildHorizontalMindmap(tree);
+    } else {
+      container.innerHTML = `<p class="text-gray-700 text-sm">📄 ${[...fileMap.keys()][0]}</p>`;
+    }
+  }
+
+  // Horizontal mindmap (left to right, auto width, no overflow)
+  function buildHorizontalMindmap(tree, containerId = 'fileTree') {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+
+    // Find root and children
+    const rootName = Object.keys(tree)[0] || "Root";
+    const root = tree[rootName] || {};
+    const children = Object.entries(root);
+
+    // SVG font settings
+    const fontFamily = "Inter, Arial, sans-serif";
+    const fontSize = 18; // px
+
+    // --- 1. Measure all node label widths (including icons) ---
+    // We'll use a hidden SVG text element for real measurement
+    const measurer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    measurer.style.visibility = "hidden";
+    document.body.appendChild(measurer);
+
+    function measureText(text, fontSizePx = fontSize, fontFam = fontFamily) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("font-size", fontSizePx + "px");
+      t.setAttribute("font-family", fontFam);
+      t.textContent = text;
+      measurer.appendChild(t);
+      const width = t.getBBox().width;
+      measurer.removeChild(t);
+      return width;
+    }
+
+    // central node
+    const centralLabelWidth = Math.ceil(measureText(rootName, 24, fontFamily)) + 40; // +padding
+
+    // child nodes
+    const nodeHeights = [];
+    let maxNodeLabelW = 0;
+    const childNodeWidths = children.map(([name]) => {
+      const w = Math.ceil(measureText(name, fontSize, fontFamily));
+      maxNodeLabelW = Math.max(maxNodeLabelW, w);
+      nodeHeights.push(46);
+      return w;
+    });
+
+    document.body.removeChild(measurer);
+
+    const nodeHeight = 46;
+    const nodeYPad = 12;
+    const branchLength = 160;
+    // Calculate SVG width & height based on children
+    const svgWidth = centralLabelWidth/2 + branchLength + maxNodeLabelW + 70 + 40;
+    const svgHeight = Math.max(220, children.length * (nodeHeight + nodeYPad));
+
+    // Center points
+    const centerX = 40 + centralLabelWidth/2;
+    const centerY = svgHeight / 2;
+
+    // SVG base
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", svgWidth);
+    svg.setAttribute("height", svgHeight);
+    svg.style.display = "block";
+    svg.style.margin = "0 auto";
+
+    // Central node (root)
+    const centralGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", centerX - centralLabelWidth/2);
+    rect.setAttribute("y", centerY - nodeHeight/2);
+    rect.setAttribute("rx", 16);
+    rect.setAttribute("ry", 16);
+    rect.setAttribute("width", centralLabelWidth);
+    rect.setAttribute("height", nodeHeight);
+    rect.setAttribute("fill", "#fff");
+    rect.setAttribute("stroke", "#888");
+    rect.setAttribute("stroke-width", "2");
+    centralGroup.appendChild(rect);
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", centerX);
+    text.setAttribute("y", centerY + 7);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("font-size", "1.5em");
+    text.setAttribute("font-weight", "bold");
+    text.setAttribute("font-family", fontFamily);
+    text.textContent = rootName;
+    centralGroup.appendChild(text);
+    svg.appendChild(centralGroup);
+
+    // If no children, done
+    if (!children.length) {
+      container.appendChild(svg);
+      return;
+    }
+
+    // Spread children vertically
+    const totalHeight = (children.length - 1) * (nodeHeight + nodeYPad);
+    const startY = centerY - totalHeight / 2;
+
+    const branchColors = [
+      "#60c020", "#55c4e7", "#347cf7", "#fbc02d", "#f87171", "#a78bfa", "#f59e42", "#a3e635"
+    ];
+
+    children.forEach(([name, sub], i) => {
+      // Node position
+      const y = startY + i * (nodeHeight + nodeYPad);
+
+      // Use measured width for this label
+      const measuredLabelW = childNodeWidths[i];
+      const nodeLabelW = 46 + measuredLabelW + 18; // icon + gap + text + some padding
+
+      // Points
+      const fromX = centerX + centralLabelWidth/2;
+      const fromY = centerY;
+      const toX = fromX + branchLength;
+      const toY = y + nodeHeight/2;
+
+      // Bezier curve for branch
+      const ctrlX = fromX + branchLength/2;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d",
+        `M${fromX},${fromY} C${ctrlX},${fromY} ${ctrlX},${toY} ${toX},${toY}`
+      );
+      path.setAttribute("stroke", branchColors[i % branchColors.length]);
+      path.setAttribute("stroke-width", 7);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+
+      // Node group (file/folder)
+      const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      nodeGroup.setAttribute("transform", `translate(${toX},${toY - nodeHeight/2})`);
+
+      // Node rect
+      const nodeRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      nodeRect.setAttribute("x", 0);
+      nodeRect.setAttribute("y", 0);
+      nodeRect.setAttribute("rx", 11);
+      nodeRect.setAttribute("ry", 11);
+      nodeRect.setAttribute("width", nodeLabelW);
+      nodeRect.setAttribute("height", nodeHeight);
+      nodeRect.setAttribute("fill", "#fff");
+      nodeRect.setAttribute("stroke", "#bbb");
+      nodeRect.setAttribute("stroke-width", "1.5");
+      nodeGroup.appendChild(nodeRect);
+
+      // Icon
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      icon.setAttribute("x", 17);
+      icon.setAttribute("y", nodeHeight/2 + 7);
+      icon.setAttribute("font-size", "1.3em");
+      icon.setAttribute("font-family", "Segoe UI Emoji");
+      icon.textContent = sub === null ? "📄" : "📁";
+      nodeGroup.appendChild(icon);
+
+      // Label
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", 40);
+      label.setAttribute("y", nodeHeight/2 + 7);
+      label.setAttribute("font-size", fontSize + "px");
+      label.setAttribute("font-family", fontFamily);
+      label.setAttribute("fill", "#444");
+      label.textContent = name;
+      nodeGroup.appendChild(label);
+
+      svg.appendChild(nodeGroup);
+    });
+
+    container.appendChild(svg);
+
+    // Responsive parent box
+    container.style.overflowX = "auto";
+    container.style.justifyContent = "flex-start";
+    container.style.alignItems = "center";
+    container.style.minWidth = "0";
+    container.style.maxWidth = "100%";
+    svg.style.minWidth = "0";
+    svg.style.maxWidth = "none";
+  }
+
+  async function openHTML() {
+    const htmlFile = [...fileMap.values()].find(f => f.name.endsWith('.html'));
+    if (!htmlFile) return alert('No HTML file found!');
+    const htmlText = await htmlFile.text();
+    renderHTMLContent(htmlText);
+  }
+
+  function renderHTMLContent(htmlText) {
+    const blob = new Blob([htmlText], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    document.getElementById('popupFrame').src = url;
+    document.getElementById('popupModal').classList.remove('hidden');
+  }
+
+  function closePopup() {
+    document.getElementById('popupModal').classList.add('hidden');
+    document.getElementById('popupFrame').src = '';
+    clearFindHighlight();
+    document.getElementById('notepadFind').value = '';
+    document.getElementById('notepadReplace').value = '';
+    document.getElementById('notepadReplaceMsg').textContent = '';
+  }
+
+  function openToolPreview() {
+    document.getElementById('toolPreviewModal').classList.remove('hidden');
+  }
+
+  function closeToolPreview() {
+    document.getElementById('toolPreviewModal').classList.add('hidden');
+  }
+
+  function runCustomCode() {
+    const html = editorHTML.getValue();
+    const css = `<style>${editorCSS.getValue()}</style>`;
+    const js = `<script>${editorJS.getValue()}<\/script>`;
+    const result = html + css + js;
+    const blob = new Blob([result], { type: 'text/html' });
+    document.getElementById('toolPreviewFrame').src = URL.createObjectURL(blob);
+  }
+
+  function autoUpdatePreview() {
+    runCustomCode();
+  }
+
+  // --- NOTEPAD FIND/REPLACE ---
+  function findInNotepad() {
+    clearFindHighlight();
+    const findVal = document.getElementById('notepadFind').value;
+    const notepad = document.getElementById('notepadText');
+    if (!findVal) return;
+    let value = notepad.value;
+    let idx = value.indexOf(findVal);
+    if (idx === -1) return;
+    notepad.focus();
+    notepad.setSelectionRange(idx, idx + findVal.length);
+    notepad.classList.add('highlight');
+    setTimeout(() => notepad.classList.remove('highlight'), 1100);
+  }
+
+  function replaceInNotepad() {
+    const findVal = document.getElementById('notepadFind').value;
+    const replaceVal = document.getElementById('notepadReplace').value;
+    const notepad = document.getElementById('notepadText');
+    if (!findVal) return;
+    let value = notepad.value;
+    if (value.indexOf(findVal) === -1) {
+      document.getElementById('notepadReplaceMsg').textContent = "Text not found";
+      return;
+    }
+    let replaced = value.replaceAll(findVal, replaceVal);
+    notepad.value = replaced;
+    document.getElementById('notepadReplaceMsg').textContent = "All replaced!";
+    setTimeout(()=>{ document.getElementById('notepadReplaceMsg').textContent=''; }, 1200);
+    clearFindHighlight();
+  }
+
+  function clearFindHighlight() {
+    document.getElementById('notepadText').classList.remove('highlight');
+  }
+
+  function quickPasteToNotepad() {
+    navigator.clipboard.readText().then(text => {
+      const notepad = document.getElementById('notepadText');
+      if (text) {
+        let val = notepad.value;
+        if (val && !val.endsWith('\n')) val += '\n';
+        notepad.value = val + text;
+        notepad.scrollTop = notepad.scrollHeight;
+        notepad.focus();
+      }
+    });
+  }
+
+  document.getElementById('notepadText').addEventListener('paste', function(e) {
+    // Default paste behavior is kept (Ctrl+V etc.)
+  });
+
+  // Monaco Editor loader with color provider for color swatches
+  window.addEventListener('DOMContentLoaded', () => {
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.38.0/min/vs' }});
+    require(['vs/editor/editor.main'], () => {
+      // Color provider to restore color swatch in gutter
+      function parseCssColor(str) {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0,0,1,1);
+        try { ctx.fillStyle = str; } catch (e) { return null; }
+        ctx.fillRect(0,0,1,1);
+        const data = ctx.getImageData(0,0,1,1).data;
+        if (data[3] === 0) return null;
+        return {
+          red: data[0]/255,
+          green: data[1]/255,
+          blue: data[2]/255,
+          alpha: data[3]/255
+        };
+      }
+
+      function provideDocumentColors(model) {
+        // Regex for CSS/HTML color codes
+        const colorRegex = /(#(?:[0-9a-fA-F]{3,8}))|\b(?:rgb|rgba|hsl|hsla)\([^\)]*\)|\b(aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen)\b/gi;
+        const colors = [];
+        const lines = model.getLinesContent();
+        for (let i = 0; i < lines.length; i++) {
+          let match;
+          while ((match = colorRegex.exec(lines[i])) !== null) {
+            const start = match.index + 1;
+            const end = start + match[0].length;
+            let color = parseCssColor(match[0]);
+            if (color) {
+              colors.push({
+                color,
+                range: new monaco.Range(i + 1, start, i + 1, end)
+              });
+            }
+          }
+        }
+        return colors;
+      }
+
+      function provideColorPresentations(model, colorInfo) {
+        const rgba = colorInfo.color;
+        let r = Math.round(rgba.red * 255);
+        let g = Math.round(rgba.green * 255);
+        let b = Math.round(rgba.blue * 255);
+        let a = rgba.alpha;
+        let hex = "#" + [r,g,b].map(x => x.toString(16).padStart(2, '0')).join('');
+        if (a < 1) hex += Math.round(a * 255).toString(16).padStart(2, '0');
+        return [{ label: hex }];
+      }
+
+      monaco.languages.registerColorProvider('css', {
+        provideDocumentColors,
+        provideColorPresentations
+      });
+      monaco.languages.registerColorProvider('html', {
+        provideDocumentColors,
+        provideColorPresentations
+      });
+      monaco.languages.registerColorProvider('javascript', {
+        provideDocumentColors,
+        provideColorPresentations
+      });
+
+      editorHTML = monaco.editor.create(document.getElementById('editor-html'), {
+        value: '<!-- HTML here -->',
+        language: 'html',
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+      editorCSS = monaco.editor.create(document.getElementById('editor-css'), {
+        value: '/* CSS here */\ncolor: #f87171;\nbackground: rgb(200,255,200);',
+        language: 'css',
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+      editorJS = monaco.editor.create(document.getElementById('editor-js'), {
+        value: '// JS here',
+        language: 'javascript',
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+
+      [editorHTML, editorCSS, editorJS].forEach(editor => {
+        editor.onDidChangeModelContent(() => {
+          autoUpdatePreview();
+        });
+      });
+
+      autoUpdatePreview();
+    });
+  });
+</script>
 </body>
 </html>
