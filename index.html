@@ -17,13 +17,31 @@
       width: 33%;
       min-width: 150px;
       resize: horizontal;
-      overflow: auto;
+      overflow: hidden;
       background: #1e1e1e;
       color: white;
+      display: flex;
+      flex-direction: column;
+      position: relative;
     }
     .resizable-right {
       flex: 1;
       overflow: auto;
+    }
+    .editor-container {
+      border: 1px solid #4b5563;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .run-button-wrapper {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 10px;
+      background: #1e1e1e;
     }
   </style>
   <script>
@@ -179,18 +197,26 @@
           &times;
         </button>
       </div>
-      <div class="flex-1 resizable-pane">
-        <div class="resizable-left p-2">
-          <div class="text-sm font-bold mb-1">HTML</div>
-          <div id="editor-html" class="resize-row mb-3" style="height: 150px;"></div>
-          <div class="text-sm font-bold mb-1 mt-2">CSS</div>
-          <div id="editor-css" class="resize-row mb-3" style="height: 120px;"></div>
-          <div class="text-sm font-bold mb-1 mt-2">JS</div>
-          <div id="editor-js" class="resize-row mb-2" style="height: 120px;"></div>
-          <button onclick="runCustomCode()"
-            class="mt-4 bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded">
-            ▶ Run
-          </button>
+      <div class="flex-1 resizable-pane relative">
+        <div class="resizable-left p-2 pb-20 overflow-y-auto">
+          <div class="editor-container">
+            <div class="text-sm font-bold mb-1">HTML</div>
+            <div id="editor-html" class="resize-row" style="height: 150px;"></div>
+          </div>
+          <div class="editor-container">
+            <div class="text-sm font-bold mb-1">CSS</div>
+            <div id="editor-css" class="resize-row" style="height: 120px;"></div>
+          </div>
+          <div class="editor-container">
+            <div class="text-sm font-bold mb-1">JS</div>
+            <div id="editor-js" class="resize-row" style="height: 120px;"></div>
+          </div>
+          <div class="run-button-wrapper">
+            <button onclick="runCustomCode()"
+              class="w-full bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded">
+              ▶ Run
+            </button>
+          </div>
         </div>
         <div class="resizable-right bg-white">
           <iframe id="toolPreviewFrame" class="w-full h-full border-0"></iframe>
