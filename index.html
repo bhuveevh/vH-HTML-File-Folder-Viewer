@@ -2,7 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>vH-HTML File/Folder Viewer</title>
+  <title>HTML Tool Viewer with Tool Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body { height: 100%; }
+    .resize-col { resize: horizontal; overflow: auto; min-width: 100px; }
+    .resize-row { resize: vertical; overflow: auto; min-height: 50px; }
+    #editor-html, #editor-css, #editor-js { min-height: 100px; }
+    .resizable-pane {
+      display: flex;
+      overflow: hidden;
+    }
+    .resizable-left {
+      width: 33%;
+      min-width: 150px;
+      resize: horizontal;
+      overflow: auto;
+      background: #1e1e1e;
+      color: white;
+    }
+    .resizable-right {
+      flex: 1;
+      overflow: auto;
+    }
+  </style>
   <script>
     let fileMap = new Map();
 
@@ -16,7 +39,6 @@
       const container = document.getElementById('fileTree');
       container.innerHTML = '';
 
-      // Show tree view only for folder imports
       if (!isSingle) {
         const tree = {};
         for (const path of fileMap.keys()) {
@@ -42,12 +64,10 @@
       for (const key in tree) {
         const li = document.createElement('li');
         li.className = 'mb-1';
-        if (tree[key] === null) {
-          li.innerHTML = `<span class="text-sm text-gray-700">📄 ${key}</span>`;
-        } else {
-          li.innerHTML = `<span class="text-sm font-semibold text-blue-600">📁 ${key}</span>`;
-          li.appendChild(buildTreeUI(tree[key], depth + 1));
-        }
+        li.innerHTML = tree[key] === null ?
+          `<span class="text-sm text-gray-700">📄 ${key}</span>` :
+          `<span class="text-sm font-semibold text-blue-600">📁 ${key}</span>`;
+        if (tree[key]) li.appendChild(buildTreeUI(tree[key], depth + 1));
         ul.appendChild(li);
       }
       return ul;
@@ -55,36 +75,14 @@
 
     async function openHTML() {
       const htmlFile = [...fileMap.values()].find(f => f.name.endsWith('.html'));
-      if (!htmlFile) {
-        alert('No HTML file found!');
-        return;
-      }
+      if (!htmlFile) return alert('No HTML file found!');
 
       const htmlText = await htmlFile.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlText, 'text/html');
+      renderHTMLContent(htmlText);
+    }
 
-      for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
-        const href = link.getAttribute('href');
-        const file = fileMap.get(href);
-        if (file) {
-          const style = document.createElement('style');
-          style.textContent = await file.text();
-          link.replaceWith(style);
-        }
-      }
-
-      for (const script of doc.querySelectorAll('script[src]')) {
-        const src = script.getAttribute('src');
-        const file = fileMap.get(src);
-        if (file) {
-          const newScript = document.createElement('script');
-          newScript.textContent = await file.text();
-          script.replaceWith(newScript);
-        }
-      }
-
-      const blob = new Blob([doc.documentElement.outerHTML], { type: 'text/html' });
+    function renderHTMLContent(htmlText) {
+      const blob = new Blob([htmlText], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       document.getElementById('popupFrame').src = url;
       document.getElementById('popupModal').classList.remove('hidden');
@@ -94,47 +92,110 @@
       document.getElementById('popupModal').classList.add('hidden');
       document.getElementById('popupFrame').src = '';
     }
+
+    function openToolPreview() {
+      document.getElementById('toolPreviewModal').classList.remove('hidden');
+    }
+
+    function closeToolPreview() {
+      document.getElementById('toolPreviewModal').classList.add('hidden');
+    }
+
+    function runCustomCode() {
+      const html = editorHTML.getValue();
+      const css = `<style>${editorCSS.getValue()}</style>`;
+      const js = `<script>${editorJS.getValue()}<\/script>`;
+      const result = html + css + js;
+      const blob = new Blob([result], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      document.getElementById('toolPreviewFrame').src = url;
+    }
+
+    let editorHTML, editorCSS, editorJS;
+    window.onload = () => {
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.38.0/min/vs' }});
+      require(['vs/editor/editor.main'], () => {
+        editorHTML = monaco.editor.create(document.getElementById('editor-html'), {
+          value: '<!-- HTML here -->',
+          language: 'html',
+          theme: 'vs-dark',
+          automaticLayout: true
+        });
+        editorCSS = monaco.editor.create(document.getElementById('editor-css'), {
+          value: '/* CSS here */',
+          language: 'css',
+          theme: 'vs-dark',
+          automaticLayout: true
+        });
+        editorJS = monaco.editor.create(document.getElementById('editor-js'), {
+          value: '// JS here',
+          language: 'javascript',
+          theme: 'vs-dark',
+          automaticLayout: true
+        });
+      });
+    };
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.38.0/min/vs/loader.js"></script>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen flex items-center justify-center">
   <div class="bg-white shadow-lg rounded-lg p-6 w-full max-w-4xl">
-    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">📁 HTML File/Folder Viewer Tool</h1>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      <div>
-        <label class="block font-semibold text-sm mb-2">📂 Import Folder (HTML + CSS + JS)</label>
-        <input type="file" webkitdirectory multiple
-          class="border border-gray-300 p-2 rounded w-full"
-          onchange="handleFiles(this.files, false)" />
-      </div>
-
-      <div>
-        <label class="block font-semibold text-sm mb-2">📄 Import Single HTML File</label>
-        <input type="file" accept=".html"
-          class="border border-gray-300 p-2 rounded w-full"
-          onchange="handleFiles(this.files, true)" />
-      </div>
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">📁 HTML Viewer Tool + Tool Preview</h1>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <input type="file" webkitdirectory multiple onchange="handleFiles(this.files, false)"
+        class="border p-2 rounded col-span-1">
+      <input type="file" accept=".html" onchange="handleFiles(this.files, true)"
+        class="border p-2 rounded col-span-1">
+      <button onclick="openToolPreview()"
+        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded col-span-1">
+        🛠 Tool Preview
+      </button>
     </div>
-
-    <button onclick="openHTML()" 
+    <button onclick="openHTML()"
       class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded mb-4">
-      🔍 Open HTML in Popup
+      🔍 Open Local HTML in Popup
     </button>
-
-    <div id="fileTree" class="bg-gray-50 border border-gray-200 p-4 rounded overflow-auto max-h-96 text-sm text-gray-700">
+    <div id="fileTree" class="bg-gray-50 border p-4 rounded overflow-auto max-h-96 text-sm">
       <p class="text-gray-500">📁 Folder structure or file name will appear here...</p>
     </div>
   </div>
 
-  <!-- Modal Popup -->
   <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg overflow-hidden w-full max-w-5xl h-[90%] shadow-lg relative">
-      <button onclick="closePopup()" 
+      <button onclick="closePopup()"
         class="absolute top-3 right-3 w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md text-xl transition">
         &times;
       </button>
       <iframe id="popupFrame" class="w-full h-full border-0"></iframe>
+    </div>
+  </div>
+
+  <div id="toolPreviewModal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden">
+    <div class="flex flex-col w-full h-full">
+      <div class="flex-none p-2 text-white bg-gray-900 flex justify-between items-center">
+        <span class="text-lg font-semibold">🛠 Tool Preview</span>
+        <button onclick="closeToolPreview()"
+          class="w-10 h-10 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white rounded-full">
+          &times;
+        </button>
+      </div>
+      <div class="flex-1 resizable-pane">
+        <div class="resizable-left p-2">
+          <div class="text-sm font-bold mb-1">HTML</div>
+          <div id="editor-html" class="resize-row mb-3" style="height: 150px;"></div>
+          <div class="text-sm font-bold mb-1 mt-2">CSS</div>
+          <div id="editor-css" class="resize-row mb-3" style="height: 120px;"></div>
+          <div class="text-sm font-bold mb-1 mt-2">JS</div>
+          <div id="editor-js" class="resize-row mb-2" style="height: 120px;"></div>
+          <button onclick="runCustomCode()"
+            class="mt-4 bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded">
+            ▶ Run
+          </button>
+        </div>
+        <div class="resizable-right bg-white">
+          <iframe id="toolPreviewFrame" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
     </div>
   </div>
 </body>
